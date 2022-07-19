@@ -1,4 +1,4 @@
-# ECE498Project
+# ECE496AProject
 Sealed envelope auction project for the UVic course ECE498
 
 REMIX DEFAULT WORKSPACE
