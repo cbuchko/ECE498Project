@@ -111,6 +111,7 @@ contract EnglishAuction {
 
         // Return bid to old highest bidder (to be obtained by them through withdraw())
         if (highestBidder != address(0)) {
+            console.log("bid successful, return old highest bid", highestBid);
             balance[highestBidder] += highestBid;
         }
 
@@ -157,9 +158,15 @@ contract EnglishAuction {
                 if (placeBid(msg.sender, value)) {
                     console.log("Place bid sucessful");
                     // Check if the bid is successful (i.e. is the new hgihest bid)
-                    balance[msg.sender] += (bidToCheck.deposit - value); // Refund the user their deposit minus their actual bid value if they are the highest bidder
+                    console.log(
+                        "bid successful, add difference bidToCheck.deposit - value",
+                        bidToCheck.deposit - value
+                    );
+                    balance[msg.sender] += ((bidToCheck.deposit /
+                        1000000000000000000) - value); // Refund the user their deposit minus their actual bid value if they are the highest bidder
                 }
             } else {
+                console.log("SHOULDNT SEE THIS");
                 balance[msg.sender] += bidToCheck.deposit; // If the deposit is not as large as the bit refund the deposit
             }
             bidToCheck.blindedBid = bytes32(0);
@@ -169,9 +176,10 @@ contract EnglishAuction {
     // At the end of the auction allow losers to withdraw their bid
     function withdraw() external {
         uint256 bal = balance[msg.sender];
+        console.log("withdraw", bal);
         if (bal > 0) {
             balance[msg.sender] = 0;
-            payable(msg.sender).transfer(bal);
+            payable(msg.sender).transfer(bal * 1000000000000000000);
         }
     }
 
@@ -183,7 +191,7 @@ contract EnglishAuction {
         ended = true;
         if (highestBidder != address(0)) {
             nft.safeTransferFrom(address(this), highestBidder, nftId);
-            seller.transfer(highestBid);
+            seller.transfer(highestBid * 1000000000000000000);
         } else {
             nft.safeTransferFrom(address(this), seller, nftId);
         }
