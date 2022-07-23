@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import "hardhat/console.sol";
+
 interface IERC721 {
     function safeTransferFrom(
         address from,
@@ -40,16 +42,12 @@ contract EnglishAuction {
         uint256 deposit;
     }
 
-    constructor(
-        address _nft,
-        uint256 _nftId,
-        uint256 _startingBid
-    ) {
+    constructor(address _nft, uint256 _nftId) {
         nft = IERC721(_nft);
         nftId = _nftId;
 
         seller = payable(msg.sender);
-        highestBid = _startingBid;
+        highestBid = 0;
     }
 
     function start() external {
@@ -78,15 +76,22 @@ contract EnglishAuction {
     //     //emit Bid(msg.sender, msg.value);
     // }
 
-    // Helper tester thing
-    function generateBlindBid(uint256 value) public view returns (bytes32) {
-        //keccak256(abi.encodePacked(value, fake, secret));
-        return keccak256(abi.encode(value));
-    }
+    // function generateBlindBid( public view returns (bytes32) {
+    //     //keccak256(abi.encodePacked(value, fake, secret));
+    //     return keccak256(abi.encode(value));
+    // }
 
-    function bid(bytes32 _blindedBid) public payable {
+    // TODO
+    // Go back to using hashes to bid
+    // Use nonce to make bids secure
+
+    function bid() public payable {
+        console.log("bid value msg.value", msg.value);
         bids[msg.sender].push(
-            BidStruct({blindedBid: _blindedBid, deposit: msg.value})
+            BidStruct({
+                blindedBid: keccak256(abi.encode(msg.value)),
+                deposit: msg.value
+            })
         );
     }
 
@@ -95,12 +100,21 @@ contract EnglishAuction {
         internal
         returns (bool success)
     {
+        console.log("bid value", value);
+        console.log("highest bid", highestBid);
+
         if (value <= highestBid) {
             return false;
         }
+
+        console.log("New highest bid");
+
+        // Return bid to old highest bidder (to be obtained by them through withdraw())
         if (highestBidder != address(0)) {
             balance[highestBidder] += highestBid;
         }
+
+        // Set the new highest bidder
         highestBid = value;
         highestBidder = bidder;
         return true;
@@ -125,29 +139,39 @@ contract EnglishAuction {
 
     function reveal(uint256[] memory _values) public {
         uint256 length = bids[msg.sender].length;
-        uint256 refund;
+        console.log("In reveal");
         for (uint256 i = 0; i < length; i++) {
+            console.log("Revealing transaction", i);
             BidStruct storage bidToCheck = bids[msg.sender][i];
             uint256 value = (_values[i]);
-            if (bidToCheck.blindedBid != keccak256(abi.encode(value))) {
+            console.log("Transaction value", value);
+            if (
+                bidToCheck.blindedBid !=
+                keccak256(abi.encode(value * 1000000000000000000))
+            ) {
                 continue;
             }
-            refund += bidToCheck.deposit;
-            if (!false && bidToCheck.deposit >= value) {
+            console.log("Hash check passed");
+            if (bidToCheck.deposit >= value) {
+                console.log("Deposit check passed");
                 if (placeBid(msg.sender, value)) {
-                    refund -= value;
+                    console.log("Place bid sucessful");
+                    // Check if the bid is successful (i.e. is the new hgihest bid)
+                    balance[msg.sender] += (bidToCheck.deposit - value); // Refund the user their deposit minus their actual bid value if they are the highest bidder
                 }
+            } else {
+                balance[msg.sender] += bidToCheck.deposit; // If the deposit is not as large as the bit refund the deposit
             }
             bidToCheck.blindedBid = bytes32(0);
         }
-        payable(msg.sender).transfer(refund);
     }
 
+    // At the end of the auction allow losers to withdraw their bid
     function withdraw() external {
         uint256 bal = balance[msg.sender];
         if (bal > 0) {
             balance[msg.sender] = 0;
-            payable(msg.sender).transfer((1 ether) * bal);
+            payable(msg.sender).transfer(bal);
         }
     }
 
@@ -159,7 +183,7 @@ contract EnglishAuction {
         ended = true;
         if (highestBidder != address(0)) {
             nft.safeTransferFrom(address(this), highestBidder, nftId);
-            seller.transfer((1 ether) * highestBid);
+            seller.transfer(highestBid);
         } else {
             nft.safeTransferFrom(address(this), seller, nftId);
         }
