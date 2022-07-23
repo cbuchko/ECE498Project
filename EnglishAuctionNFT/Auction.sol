@@ -1,4 +1,14 @@
 // SPDX-License-Identifier: MIT
+
+// https://youtu.be/ZeFjGJpzI7E?t=840
+
+// TODO
+// Go back to using hashes to bid
+// Use nonce to make bids secure
+// Cleanup/modify code
+// Simplify NFT process
+// Add modifiers to ensure steps are done in the correct order (bid -> reveal -> end -> withdraw)
+
 pragma solidity ^0.8.13;
 
 import "hardhat/console.sol";
@@ -61,29 +71,10 @@ contract EnglishAuction {
         emit Start();
     }
 
-    // function bid() external payable {
-    //     require(started, "not started");
-    //     require(block.timestamp < endAt, "ended");
-    //     // require(msg.value > highestBid, "value < highest");
-
-    //     if (highestBidder != address(0)) {
-    //         bids[highestBidder] += highestBid;
-    //     }
-
-    //     highestBidder = msg.sender;
-    //     highestBid = msg.value;
-
-    //     //emit Bid(msg.sender, msg.value);
-    // }
-
     // function generateBlindBid( public view returns (bytes32) {
     //     //keccak256(abi.encodePacked(value, fake, secret));
     //     return keccak256(abi.encode(value));
     // }
-
-    // TODO
-    // Go back to using hashes to bid
-    // Use nonce to make bids secure
 
     function bid() public payable {
         console.log("bid value msg.value", msg.value);
@@ -120,23 +111,6 @@ contract EnglishAuction {
         highestBidder = bidder;
         return true;
     }
-
-    // //go through all bids and figure out which one is the highest
-    // function TallyBids(uint256 value) public {
-    //     if (value >= balance[msg.sender]) return;
-
-    //     bytes32 bid = generateBlindBid(value);
-    //     for (uint256 i = 0; i < bids[msg.sender].length; i++) {
-    //         if (bid == bids[msg.sender][i]) {
-    //             if (value > winner_bid) {
-    //                 winner_bid = value;
-    //                 winner_addr = msg.sender;
-    //             }
-    //         }
-    //         emit bidDisclosed(value);
-    //     }
-    //     return;
-    // }
 
     function reveal(uint256[] memory _values) public {
         uint256 length = bids[msg.sender].length;

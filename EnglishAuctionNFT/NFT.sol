@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: MIT
+
+// https://solidity-by-example.org/app/erc721/
+
 pragma solidity ^0.8.13;
 
 interface IERC165 {
