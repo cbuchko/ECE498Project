@@ -12,6 +12,7 @@ interface ContractInterface {
 
 contract SealedEnvelope {
     address public winner_addr;
+    uint256 public winner_bid;
     address seller_addr;
     address contract_addr;
     uint256 reveal_time;
@@ -20,6 +21,7 @@ contract SealedEnvelope {
     uint256 public auction_item;
 
     mapping(address => uint256) balance;
+    mapping(address => bytes32) bids;
 
     function SealedEnvelope(
         uint256 _auction_item,
@@ -30,6 +32,7 @@ contract SealedEnvelope {
         seller_addr = msg.sender;
 
         reveal_time = block.timestamp + bid_interval;
+        start_time = block.timestamp;
         start_time = block.timestamp;
         finished = false;
     }
@@ -43,8 +46,24 @@ contract SealedEnvelope {
         balance[msg.sender] = msg.value;
     }
 
-    function TallyBids() public inBidding returns () {
-        uint length = bids[]
+    //go through all bids and figure out which one is the highest
+    function TallyBids(
+        uint256 value,
+        bool fake,
+        uint256 secret
+    ) public inBidding {
+        if (fake || value >= balance[msg.sender]) return;
+
+        bytes32 bid = keccak256(abi.encodePacked(value, fake, secret));
+        for (uint256 i = 0; i < bids[msg.sender].length; i++) {
+            if (bid == bids[msg.sender][i]) {
+                if (value > winner_bid) {
+                    winner_bid = value;
+                    winner_addr = msg.sender;
+                }
+            }
+            emit bidDisclosed(value);
+        }
         return;
     }
 
@@ -58,7 +77,7 @@ contract SealedEnvelope {
     }
 
     //send auction item to winner and take funds
-    function awardWinningBid() public isWinner inRevealing returns () {
+    function awardWinningBid() public isWinner inRevealing returns (uint256) {
         ContractInterface(contract_addr).sendToken(auction_item, msg.sender);
         uint256 new_balance = handleTransfer();
         return new_balance;
@@ -83,7 +102,12 @@ contract SealedEnvelope {
     }
 
     // Return losing bids and auction_item to winning bidder
-    function FinishAuction() public isSeller inRevealing {}
+    function FinishAuction() public payable isSeller inRevealing {
+        require(!finished);
+        emit AuctionResolution(winner_addr, winner_bid);
+        finished = true;
+        seller_addr.transfer((1 ether) * winner_bid);
+    }
 
     modifier inBidding() {
         require(
@@ -93,25 +117,27 @@ contract SealedEnvelope {
     }
 
     modifier inRevealing() {
-        require(
-            block.timestamp >= reveal_time && block.timestamp <= finish_time
-        );
+        require(block.timestamp >= reveal_time && !finished);
         _;
     }
 
     modifier isSeller() {
         require(msg.sender == seller_addr);
+        _;
     }
 
     modifier isBidder() {
         require(msg.sender != seller_addr);
+        _;
     }
 
     modifier isWinner() {
         require(msg.sender == winner_addr && msg.sender != seller_addr);
+        _;
     }
 
     modifier isLoser() {
         require(msg.sender != winner_addr && msg.sender != seller_addr);
+        _;
     }
 }

@@ -7,12 +7,6 @@ interface IERC721 {
         address to,
         uint256 tokenId
     ) external;
-
-    function transferFrom(
-        address,
-        address,
-        uint256
-    ) external;
 }
 
 contract EnglishAuction {
@@ -31,7 +25,7 @@ contract EnglishAuction {
 
     address public highestBidder;
     uint256 public highestBid;
-    mapping(address => uint256) public balance;
+    mapping(address => uint256) public bids;
 
     constructor(
         address _nft,
@@ -62,7 +56,7 @@ contract EnglishAuction {
         require(msg.value > highestBid, "value < highest");
 
         if (highestBidder != address(0)) {
-            balance[highestBidder] += highestBid;
+            bids[highestBidder] += highestBid;
         }
 
         highestBidder = msg.sender;
@@ -72,11 +66,11 @@ contract EnglishAuction {
     }
 
     function withdraw() external {
-        uint256 new_balance = balance[msg.sender];
-        balance[msg.sender] = 0;
-        payable(msg.sender).transfer(new_balance);
+        uint256 bal = bids[msg.sender];
+        bids[msg.sender] = 0;
+        payable(msg.sender).transfer(bal);
 
-        emit Withdraw(msg.sender, new_balance);
+        emit Withdraw(msg.sender, bal);
     }
 
     function end() external {
