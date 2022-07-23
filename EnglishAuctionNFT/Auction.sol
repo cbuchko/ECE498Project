@@ -7,6 +7,12 @@ interface IERC721 {
         address to,
         uint256 tokenId
     ) external;
+
+    function transferFrom(
+        address,
+        address,
+        uint256
+    ) external;
 }
 
 contract EnglishAuction {
@@ -25,7 +31,14 @@ contract EnglishAuction {
 
     address public highestBidder;
     uint256 public highestBid;
-    mapping(address => uint256) public bids;
+
+    mapping(address => uint256) balance;
+    mapping(address => BidStruct[]) bids;
+
+    struct BidStruct {
+        bytes32 blindedBid;
+        uint256 deposit;
+    }
 
     constructor(
         address _nft,
@@ -50,27 +63,92 @@ contract EnglishAuction {
         emit Start();
     }
 
-    function bid() external payable {
-        require(started, "not started");
-        require(block.timestamp < endAt, "ended");
-        require(msg.value > highestBid, "value < highest");
+    // function bid() external payable {
+    //     require(started, "not started");
+    //     require(block.timestamp < endAt, "ended");
+    //     // require(msg.value > highestBid, "value < highest");
 
-        if (highestBidder != address(0)) {
-            bids[highestBidder] += highestBid;
+    //     if (highestBidder != address(0)) {
+    //         bids[highestBidder] += highestBid;
+    //     }
+
+    //     highestBidder = msg.sender;
+    //     highestBid = msg.value;
+
+    //     //emit Bid(msg.sender, msg.value);
+    // }
+
+    // Helper tester thing
+    function generateBlindBid(uint256 value) public view returns (bytes32) {
+        //keccak256(abi.encodePacked(value, fake, secret));
+        return keccak256(abi.encode(value));
+    }
+
+    function bid(bytes32 _blindedBid) public payable {
+        bids[msg.sender].push(
+            BidStruct({blindedBid: _blindedBid, deposit: msg.value})
+        );
+    }
+
+    // Track the highest bidder
+    function placeBid(address bidder, uint256 value)
+        internal
+        returns (bool success)
+    {
+        if (value <= highestBid) {
+            return false;
         }
+        if (highestBidder != address(0)) {
+            balance[highestBidder] += highestBid;
+        }
+        highestBid = value;
+        highestBidder = bidder;
+        return true;
+    }
 
-        highestBidder = msg.sender;
-        highestBid = msg.value;
+    // //go through all bids and figure out which one is the highest
+    // function TallyBids(uint256 value) public {
+    //     if (value >= balance[msg.sender]) return;
 
-        emit Bid(msg.sender, msg.value);
+    //     bytes32 bid = generateBlindBid(value);
+    //     for (uint256 i = 0; i < bids[msg.sender].length; i++) {
+    //         if (bid == bids[msg.sender][i]) {
+    //             if (value > winner_bid) {
+    //                 winner_bid = value;
+    //                 winner_addr = msg.sender;
+    //             }
+    //         }
+    //         emit bidDisclosed(value);
+    //     }
+    //     return;
+    // }
+
+    function reveal(uint256[] memory _values) public {
+        uint256 length = bids[msg.sender].length;
+        uint256 refund;
+        for (uint256 i = 0; i < length; i++) {
+            BidStruct storage bidToCheck = bids[msg.sender][i];
+            uint256 value = (_values[i]);
+            if (bidToCheck.blindedBid != keccak256(abi.encode(value))) {
+                continue;
+            }
+            refund += bidToCheck.deposit;
+            if (!false && bidToCheck.deposit >= value) {
+                if (placeBid(msg.sender, value)) {
+                    refund -= value;
+                }
+            }
+            bidToCheck.blindedBid = bytes32(0);
+        }
+        payable(msg.sender).transfer(refund);
     }
 
     function withdraw() external {
-        uint256 bal = bids[msg.sender];
-        bids[msg.sender] = 0;
-        payable(msg.sender).transfer(bal);
-
-        emit Withdraw(msg.sender, bal);
+        uint256 bal = balance[msg.sender];
+        if (bal > 0) {
+            balance[msg.sender] = 0;
+            payable(msg.sender).transfer((1 ether) * bal);
+        }
     }
 
     function end() external {
@@ -81,7 +159,7 @@ contract EnglishAuction {
         ended = true;
         if (highestBidder != address(0)) {
             nft.safeTransferFrom(address(this), highestBidder, nftId);
-            seller.transfer(highestBid);
+            seller.transfer((1 ether) * highestBid);
         } else {
             nft.safeTransferFrom(address(this), seller, nftId);
         }
