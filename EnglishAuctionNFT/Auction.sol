@@ -3,11 +3,11 @@
 // https://youtu.be/ZeFjGJpzI7E?t=840
 
 // TODO
-// Go back to using hashes to bid
-// Use nonce to make bids secure
+// Go back to using hashes to bid (done, untested)
+// Use nonce to make bids secure (done, untested)
+// Add modifiers to ensure steps are done in the correct order (bid -> reveal -> end -> withdraw) (half done)
 // Cleanup/modify code
 // Simplify NFT process
-// Add modifiers to ensure steps are done in the correct order (bid -> reveal -> end -> withdraw)
 
 pragma solidity ^0.8.13;
 
@@ -27,10 +27,8 @@ interface IERC721 {
     ) external;
 }
 
-contract EnglishAuction {
+contract SealedEnvelopeAuction {
     event Start();
-    event Bid(address indexed sender, uint256 amount);
-    event Withdraw(address indexed bidder, uint256 amount);
     event End(address winner, uint256 amount);
 
     IERC721 public nft;
@@ -38,8 +36,18 @@ contract EnglishAuction {
 
     address payable public seller;
     uint256 public endAt;
-    bool public started;
-    bool public ended;
+    uint256 public revealAt;
+    bool public started = false;
+    bool public ended = false;
+
+    enum Stage {
+        Unstarted,
+        Bidding,
+        Revealing,
+        Ending
+    }
+
+    Stage currentStage = Unstarted;
 
     address public highestBidder;
     uint256 public highestBid;
@@ -66,23 +74,25 @@ contract EnglishAuction {
 
         nft.transferFrom(msg.sender, address(this), nftId);
         started = true;
-        endAt = block.timestamp + 60;
+        revealAt = block.timestamp + 30;
+        endAt = block.timestamp + (2 * 30);
 
         emit Start();
     }
 
-    // function generateBlindBid( public view returns (bytes32) {
-    //     //keccak256(abi.encodePacked(value, fake, secret));
-    //     return keccak256(abi.encode(value));
-    // }
+    // Would be implemented client side, here for demo purposes
+    function generateBlindBid(uint256 value, uint256 nonce)
+        public
+        view
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(value, nonce));
+    }
 
-    function bid() public payable {
+    function bid(bytes32 hashedBid) public payable {
         console.log("bid value msg.value", msg.value);
         bids[msg.sender].push(
-            BidStruct({
-                blindedBid: keccak256(abi.encode(msg.value)),
-                deposit: msg.value
-            })
+            BidStruct({blindedBid: hashedBid, deposit: msg.value})
         );
     }
 
@@ -112,17 +122,18 @@ contract EnglishAuction {
         return true;
     }
 
-    function reveal(uint256[] memory _values) public {
+    function reveal(uint256[] memory _values, uint256[] memory _nonces) public {
         uint256 length = bids[msg.sender].length;
         console.log("In reveal");
         for (uint256 i = 0; i < length; i++) {
             console.log("Revealing transaction", i);
             BidStruct storage bidToCheck = bids[msg.sender][i];
             uint256 value = (_values[i]);
+            uint256 nonce = (_nonces[i]);
             console.log("Transaction value", value);
             if (
                 bidToCheck.blindedBid !=
-                keccak256(abi.encode(value * 1000000000000000000))
+                keccak256(abi.encodePacked(value, nonce))
             ) {
                 continue;
             }
@@ -171,5 +182,45 @@ contract EnglishAuction {
         }
 
         emit End(highestBidder, highestBid);
+    }
+
+    // TODO add modifiers to prevent out of order execution, use time based stages so a single bidder can't hang up the process
+
+    modifier isSeller() {
+        require(msg.sender == seller_addr);
+        _;
+    }
+
+    modifier isBidder() {
+        require(msg.sender != seller_addr);
+        _;
+    }
+
+    modifier isStarted() {
+        require(started == true, "Not started");
+        _;
+    }
+
+    modifier isEnded() {
+        require(ended == true, "Not ended");
+        _;
+    }
+
+    modifier isBidStage() {
+        require(block.timestamp < revealAt, "Not bid stage");
+        _;
+    }
+
+    modifier isRevealStage() {
+        require(
+            block.timestamp >= revealAt && block.timestamp <= endAt,
+            "Not reveal stage"
+        );
+        _;
+    }
+
+    modifier isEndStage() {
+        require(block.timestamp >= endAt, "Not bid stage");
+        _;
     }
 }
