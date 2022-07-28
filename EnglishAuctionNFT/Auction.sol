@@ -81,7 +81,7 @@ contract SealedEnvelopeAuction {
     }
 
     // Would be implemented client side, here for demo purposes
-    function generateBlindBid(uint256 value, string nonce)
+    function generateBlindBid(uint256 value, string memory nonce)
         public
         pure
         returns (bytes32)
@@ -129,7 +129,7 @@ contract SealedEnvelopeAuction {
             console.log("Revealing transaction", i);
             BidStruct storage bidToCheck = bids[msg.sender][i];
             uint256 value = (_values[i]);
-            uint256 nonce = (_nonces[i]);
+            string memory nonce = (_nonces[i]);
             console.log("Transaction value", value);
             if (
                 bidToCheck.blindedBid !=
