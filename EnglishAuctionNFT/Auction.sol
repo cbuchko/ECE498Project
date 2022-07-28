@@ -187,12 +187,12 @@ contract SealedEnvelopeAuction {
     // TODO add modifiers to prevent out of order execution, use time based stages so a single bidder can't hang up the process
 
     modifier isSeller() {
-        require(msg.sender == seller_addr);
+        require(msg.sender == seller);
         _;
     }
 
     modifier isBidder() {
-        require(msg.sender != seller_addr);
+        require(msg.sender != seller);
         _;
     }
 
