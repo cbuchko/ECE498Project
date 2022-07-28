@@ -47,7 +47,7 @@ contract SealedEnvelopeAuction {
         Ending
     }
 
-    Stage currentStage = Unstarted;
+    Stage currentStage = Stage.Unstarted;
 
     address public highestBidder;
     uint256 public highestBid;
