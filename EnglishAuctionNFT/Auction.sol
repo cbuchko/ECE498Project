@@ -35,10 +35,6 @@ contract SealedEnvelopeAuction {
     uint256 public nftId;
 
     address payable public seller;
-    uint256 public endAt;
-    uint256 public revealAt;
-    bool public started = false;
-    bool public ended = false;
 
     enum Stage {
         Unstarted,
@@ -68,14 +64,9 @@ contract SealedEnvelopeAuction {
         highestBid = 0;
     }
 
-    function start() external {
-        require(!started, "started");
-        require(msg.sender == seller, "not seller");
-
+    function start() external isSeller isUnstarted {
         nft.transferFrom(msg.sender, address(this), nftId);
-        started = true;
-        revealAt = block.timestamp + 30;
-        endAt = block.timestamp + (2 * 30);
+        currentStage = Stage.Bidding;
 
         emit Start();
     }
@@ -89,7 +80,7 @@ contract SealedEnvelopeAuction {
         return keccak256(abi.encodePacked(value, nonce));
     }
 
-    function bid(bytes32 hashedBid) public payable {
+    function bid(bytes32 hashedBid) public payable isBidder isBidStage {
         console.log("bid value msg.value", msg.value);
         bids[msg.sender].push(
             BidStruct({blindedBid: hashedBid, deposit: msg.value})
@@ -122,7 +113,11 @@ contract SealedEnvelopeAuction {
         return true;
     }
 
-    function reveal(uint256[] memory _values, string[] memory _nonces) public {
+    function reveal(uint256[] memory _values, string[] memory _nonces)
+        public
+        isBidder
+        isRevealStage
+    {
         uint256 length = bids[msg.sender].length;
         console.log("In reveal");
         for (uint256 i = 0; i < length; i++) {
@@ -144,82 +139,81 @@ contract SealedEnvelopeAuction {
                     console.log("Place bid sucessful");
                     // Check if the bid is successful (i.e. is the new hgihest bid)
                     console.log(
-                        "bid successful, add difference bidToCheck.deposit - value",
+                        "Bid successful, add difference bidToCheck.deposit - value",
                         bidToCheck.deposit - value
                     );
                     balance[msg.sender] += ((bidToCheck.deposit /
                         1000000000000000000) - value); // Refund the user their deposit minus their actual bid value if they are the highest bidder
                 }
             } else {
-                balance[msg.sender] += bidToCheck.deposit; // If the deposit is not as large as the bit refund the deposit
+                console.log("Deposit was less than bid");
+                balance[msg.sender] += (bidToCheck.deposit /
+                    1000000000000000000); // If the deposit is not as large as the bit refund the deposit
             }
             bidToCheck.blindedBid = bytes32(0);
         }
     }
 
     // At the end of the auction allow losers to withdraw their bid
-    function withdraw() external {
+    function withdraw() external isBidder isEnded {
         uint256 bal = balance[msg.sender];
-        console.log("withdraw", bal);
+        console.log("Withdraw", bal);
         if (bal > 0) {
             balance[msg.sender] = 0;
             payable(msg.sender).transfer(bal * 1000000000000000000);
         }
     }
 
-    function end() external {
-        require(started, "not started");
-        require(block.timestamp >= endAt, "not ended");
-        require(!ended, "ended");
-
+    function end() external isSeller isRevealStage {
         ended = true;
         if (highestBidder != address(0)) {
+            console.log("Transfer winning bid to seller and NFT to winner");
             nft.safeTransferFrom(address(this), highestBidder, nftId);
             seller.transfer(highestBid * 1000000000000000000);
         } else {
             nft.safeTransferFrom(address(this), seller, nftId);
         }
 
+        currentStage = Stage.Ending;
         emit End(highestBidder, highestBid);
     }
 
-    // TODO add modifiers to prevent out of order execution, use time based stages so a single bidder can't hang up the process
+    function startReveal() external {
+        currentStage = Stage.Revealing;
+    }
 
     modifier isSeller() {
-        require(msg.sender == seller);
+        require(msg.sender == seller, "Not seller");
         _;
     }
 
     modifier isBidder() {
-        require(msg.sender != seller);
+        require(msg.sender != seller, "Not bidder");
+        _;
+    }
+
+    modifier isUnstarted() {
+        require(currentStage == Stage.Unstarted, "Already started");
         _;
     }
 
     modifier isStarted() {
-        require(started == true, "Not started");
+        require(currentStage == Stage.Bidding, "Not started");
         _;
     }
 
     modifier isEnded() {
-        require(ended == true, "Not ended");
+        require(currentStage == Stage.Ending, "Not ended");
         _;
     }
 
     modifier isBidStage() {
-        require(block.timestamp < revealAt, "Not bid stage");
+        require(currentStage == Stage.Bidding, "Not bid stage");
         _;
     }
 
     modifier isRevealStage() {
-        require(
-            block.timestamp >= revealAt && block.timestamp <= endAt,
-            "Not reveal stage"
-        );
-        _;
-    }
-
-    modifier isEndStage() {
-        require(block.timestamp >= endAt, "Not bid stage");
+        require(currentStage == Stage.Revealing, "Not reveal stage");
         _;
     }
 }
