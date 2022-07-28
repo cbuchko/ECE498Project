@@ -81,7 +81,7 @@ contract SealedEnvelopeAuction {
     }
 
     function bid(bytes32 hashedBid) public payable isBidder isBidStage {
-        console.log("bid value msg.value", msg.value);
+        console.log("Bid value entered");
         bids[msg.sender].push(
             BidStruct({blindedBid: hashedBid, deposit: msg.value})
         );
@@ -92,8 +92,8 @@ contract SealedEnvelopeAuction {
         internal
         returns (bool success)
     {
-        console.log("bid value", value);
-        console.log("highest bid", highestBid);
+        console.log("Bid value", value);
+        console.log("Highest bid", highestBid);
 
         if (value <= highestBid) {
             return false;
@@ -103,7 +103,7 @@ contract SealedEnvelopeAuction {
 
         // Return bid to old highest bidder (to be obtained by them through withdraw())
         if (highestBidder != address(0)) {
-            console.log("bid successful, return old highest bid", highestBid);
+            console.log("Bid successful, return old highest bid", highestBid);
             balance[highestBidder] += highestBid;
         }
 
@@ -165,7 +165,6 @@ contract SealedEnvelopeAuction {
     }
 
     function end() external isSeller isRevealStage {
-        ended = true;
         if (highestBidder != address(0)) {
             console.log("Transfer winning bid to seller and NFT to winner");
             nft.safeTransferFrom(address(this), highestBidder, nftId);
