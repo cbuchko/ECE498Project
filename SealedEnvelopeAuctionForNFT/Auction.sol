@@ -1,14 +1,5 @@
 // SPDX-License-Identifier: MIT
 
-// https://youtu.be/ZeFjGJpzI7E?t=840
-
-// TODO
-// Go back to using hashes to bid (done, untested)
-// Use nonce to make bids secure (done, untested)
-// Add modifiers to ensure steps are done in the correct order (bid -> reveal -> end -> withdraw) (half done)
-// Cleanup/modify code
-// Simplify NFT process
-
 pragma solidity ^0.8.13;
 
 import "hardhat/console.sol";
