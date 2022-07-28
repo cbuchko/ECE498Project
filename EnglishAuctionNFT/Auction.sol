@@ -81,9 +81,9 @@ contract SealedEnvelopeAuction {
     }
 
     // Would be implemented client side, here for demo purposes
-    function generateBlindBid(uint256 value, uint256 nonce)
+    function generateBlindBid(uint256 value, string nonce)
         public
-        view
+        pure
         returns (bytes32)
     {
         return keccak256(abi.encodePacked(value, nonce));
@@ -122,7 +122,7 @@ contract SealedEnvelopeAuction {
         return true;
     }
 
-    function reveal(uint256[] memory _values, uint256[] memory _nonces) public {
+    function reveal(uint256[] memory _values, string[] memory _nonces) public {
         uint256 length = bids[msg.sender].length;
         console.log("In reveal");
         for (uint256 i = 0; i < length; i++) {
@@ -138,7 +138,7 @@ contract SealedEnvelopeAuction {
                 continue;
             }
             console.log("Hash check passed");
-            if (bidToCheck.deposit >= value) {
+            if ((bidToCheck.deposit / 1000000000000000000) >= value) {
                 console.log("Deposit check passed");
                 if (placeBid(msg.sender, value)) {
                     console.log("Place bid sucessful");
@@ -151,7 +151,6 @@ contract SealedEnvelopeAuction {
                         1000000000000000000) - value); // Refund the user their deposit minus their actual bid value if they are the highest bidder
                 }
             } else {
-                console.log("SHOULDNT SEE THIS");
                 balance[msg.sender] += bidToCheck.deposit; // If the deposit is not as large as the bit refund the deposit
             }
             bidToCheck.blindedBid = bytes32(0);
